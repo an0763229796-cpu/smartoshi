@@ -34,31 +34,42 @@ export const calculateLiquidationInfo = (
   entryPrice: number,
   quantity: number,
   leverage: number,
+  maintenancePercent: number = 0.5, // percent (e.g., 0.5 means 0.5%)
+  safetyPercent: number = 30 // percent (e.g., 30 means 30% safety buffer)
 ) => {
   if (!balance || !entryPrice || !quantity || !leverage) {
     return { longLiq: null, shortLiq: null, buffer: null, isSafe: false };
   }
+  // Use formulas provided:
+  // For Long: liquidationPrice = entryPrice * (1 - 1/leverage + MMR)
+  // For Short: liquidationPrice = entryPrice * (1 + 1/leverage - MMR)
+  // maintenancePercent is provided as percent (e.g., 0.5 means 0.5%) -> MMR is decimal
+  const MMR = maintenancePercent / 100;
 
-  // Simplified liquidation price formula for cross margin (this is an estimation)
-  // Assumes isolated margin concept for calculation simplicity.
-  // Real cross margin liq price depends on the entire account balance and other positions.
-  const margin = (entryPrice * quantity) / leverage;
-  
-  // For Long: Price has to drop
-  const priceDrop = (balance + margin) / quantity;
-  const longLiq = entryPrice - priceDrop;
+  const longLiq = entryPrice * (1 - 1 / leverage + MMR);
+  const shortLiq = entryPrice * (1 + 1 / leverage - MMR);
 
-  // For Short: Price has to rise
-  const priceRise = (balance + margin) / quantity;
-  const shortLiq = entryPrice + priceRise;
-  
-  const buffer = Math.abs(entryPrice - longLiq);
-  const isSafe = buffer > 120;
+  // For compatibility keep maintenanceAmount/safetyBuffer/effectiveCollateral/marginRequired
+  const maintenanceAmount = balance * (maintenancePercent / 100);
+  const safetyBuffer = balance * (safetyPercent / 100);
+  const effectiveCollateral = balance - maintenanceAmount - safetyBuffer;
+  const marginRequired = (entryPrice * quantity) / leverage;
 
-  return { 
-    longLiq: longLiq > 0 ? longLiq : 0, 
-    shortLiq, 
-    buffer, 
-    isSafe 
-  };
+  // distance (absolute) from entry to liquidation price for long/short
+  const bufferLong = Math.abs(entryPrice - longLiq);
+  const bufferShort = Math.abs(shortLiq - entryPrice);
+
+  // isSafe: simple heuristic — effective collateral should cover margin and bufferLong/Short should be > 0
+  const isSafe = effectiveCollateral > marginRequired && (bufferLong > 0 || bufferShort > 0);
+
+  return {
+    longLiq: longLiq > 0 ? longLiq : 0,
+    shortLiq,
+    buffer: bufferLong,
+    isSafe,
+    maintenanceAmount,
+    safetyBuffer,
+    effectiveCollateral,
+    marginRequired,
+  } as any;
 };

@@ -15,10 +15,91 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ pairs, onEdit, onDelete, isModalOpen, setIsModalOpen, editingPair, onSave, currentEthPrice }) => {
+  const copyTextToClipboard = async (text: string) => {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+        console.info('Copied to clipboard');
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        console.info('Copied to clipboard (fallback)');
+      }
+    } catch (err) {
+      console.error('Failed to copy to clipboard:', err);
+    }
+  };
+
+  const copyTradeToClipboard = (trade: any) => {
+    const headers = [
+      '开仓价格\nGiá mở lệnh',
+      '平仓价格\nGiá đóng lệnh',
+      '开仓时间\nThời gian mở lệnh',
+      '平仓时间\nThời gian đóng lệnh',
+      '仓位数量\nKhối lượng giao dịch',
+      'COIN',
+      '手续费\nPhí thủ tục',
+      '平仓盈亏\nPosition PnL'
+    ];
+
+    // Format numbers with dot thousand separator and comma decimal (e.g. 3.852,42)
+    const euroNumber = (n: number | null | undefined, digits = 2) => {
+      if (n === null || n === undefined || Number.isNaN(n)) return '';
+      return new Intl.NumberFormat('de-DE', { minimumFractionDigits: digits, maximumFractionDigits: digits }).format(n);
+    };
+
+    const euroCurrency = (n: number | null | undefined, digits = 2) => {
+      if (n === null || n === undefined || Number.isNaN(n)) return '';
+      // format number with de-DE formatting then attach $ before without space
+      const formatted = euroNumber(n, digits);
+      return `$${formatted}`;
+    };
+
+    const formatDateTime = (iso?: string) => {
+      if (!iso) return '';
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return iso;
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const day = pad(d.getDate());
+      const month = pad(d.getMonth() + 1);
+      const year = d.getFullYear();
+      const hours = pad(d.getHours());
+      const minutes = pad(d.getMinutes());
+      const seconds = pad(d.getSeconds());
+      return `${day}/${month}/${year} ${hours}:${minutes}:${seconds}`;
+    };
+
+    // Build values in the order you requested and as a single TSV line (no header)
+    const values = [
+      euroNumber(trade.openPrice),
+      euroNumber(trade.closePrice),
+      formatDateTime(trade.openTime),
+      formatDateTime(trade.closeTime),
+      // quantity with comma decimal
+      euroNumber(trade.quantity, 2),
+      trade.coin || '',
+      euroCurrency(trade.fee),
+      euroCurrency(trade.pnl),
+    ];
+
+    const tsvLine = values.join('\t');
+    copyTextToClipboard(tsvLine);
+  };
 
   const renderTradeRow = (trade: any, exchangeName: string) => (
     <>
-      <td className="p-3 text-sm text-gray-300 whitespace-nowrap">{exchangeName}</td>
+      <td className="p-3 text-sm text-gray-300 whitespace-nowrap">
+        <div className="flex items-center space-x-2">
+          <span>{exchangeName}</span>
+          <button onClick={() => copyTradeToClipboard(trade)} title="Copy row to clipboard (TSV)" className="text-gray-400 hover:text-white">
+            <i className="fas fa-copy"></i>
+          </button>
+        </div>
+      </td>
       <td className="p-3 text-sm text-gray-300 whitespace-nowrap">{formatCurrency(trade.openPrice)}</td>
       <td className="p-3 text-sm text-gray-300 whitespace-nowrap">{formatCurrency(trade.closePrice)}</td>
       <td className="p-3 text-sm text-gray-300 whitespace-nowrap">{trade.quantity}</td>
