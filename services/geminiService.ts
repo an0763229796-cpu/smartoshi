@@ -31,7 +31,10 @@ export async function parseTradeText(text: string): Promise<Trade> {
   }
   
   try {
-    const prompt = `You are an expert data extraction bot. Your task is to parse trade confirmation text and extract key details into a structured JSON format according to the provided schema.
+  `,
+    // Move aiPrompt declaration above its usage
+    // ...existing code...
+    // Move aiPrompt definition directly before its usage
 
 **CRITICAL Number Formatting Rules:**
 - You will encounter numbers in two formats: American (e.g., "1,234.56") and European (e.g., "1.234,56").
@@ -75,18 +78,56 @@ Fees: -11.54901000 USDT
 Here is the text to parse:
 "${text}"`;
 
+    const aiPrompt = [
+      "You are an expert data extraction bot. Your task is to parse trade confirmation text and extract key details into a structured JSON format according to the provided schema.",
+      "CRITICAL Number Formatting Rules:",
+      "You will encounter numbers in two formats: American (e.g., 1,234.56) and European (e.g., 1.234,56).",
+      "In American format, ',' is a thousands separator and '.' is the decimal.",
+      "In European format, '.' is a thousands separator and ',' is the decimal.",
+      "You MUST correctly interpret these and convert them to standard numbers (e.g., 1234.56).",
+      "A number like -124.593300 is a decimal number, NOT a large integer. Parse it as -124.5933.",
+      "General Rules:",
+      "The coin symbol should be extracted from the pair (e.g., ETHUSDT -> ETH).",
+      "All prices, quantities, fees, and PnL should be numbers. Remove any currency symbols like USDT or $.",
+      "Fees should always be positive. If the text shows a negative fee, convert it to its absolute value.",
+      "Timestamps must be converted to full ISO 8601 format (YYYY-MM-DDTHH:mm:ss).",
+      "Special Rule for Bitunix:",
+      "If the pasted text contains a field called 'Closing PnL', use its value as the 'pnl' field in the output. If 'Closing PnL' is not present, use 'Position PnL' as usual. Always parse the value as a number, removing any currency symbols and handling both American and European formats.",
+      "Example Format 1:",
+      "ETHUSDT",
+      "Short",
+      "Open Time: 2025-10-31 10:24:44",
+      "Opening Average Price: 3.828,65",
+      "Close Time: 2025-10-31 11:22:04",
+      "Closing Average Price: 3.870,32",
+      "Position Size: 2.99 ETH",
+      "Fees: -11,509960 USDT",
+      "Position PnL: -124,593300",
+      "Example Format 2:",
+      "ETHUSDT ",
+      "Long",
+      "Time Opened: 2025-10-31 10:24:43",
+      "Entry Price: 3,828.66 USDT",
+      "Position PnL: +114.51099000 USDT",
+      "Time Closed: 2025-10-31 11:22:03",
+      "Close Price: 3,870.68 USDT",
+      "Closed Qty: 3.000 ETH",
+      "Fees: -11.54901000 USDT",
+      "Closing PnL: +126.06000000 USDT",
+      "Here is the text to parse:",
+      text
+    ].join('\n');
+
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: prompt,
+      contents: aiPrompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: tradeSchema,
-      },
+      }
     });
-    
-    const parsedJson = JSON.parse(response.text);
 
-    // The Gemini response is the main payload, we just need to add a placeholder for UID
+    const parsedJson = JSON.parse(response.text);
     return { ...parsedJson, uid: '' };
 
   } catch (error) {
