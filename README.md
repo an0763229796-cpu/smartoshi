@@ -20,3 +20,4 @@ View your app in AI Studio: https://ai.studio/apps/drive/1uHM9j0xc_VsFu8D1NLVVP2
    `npm run dev`
 "# smartoshi" 
 "# smartoshi" 
+"# smartoshi" 
